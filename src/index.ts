@@ -5,11 +5,11 @@ import { I18nParser } from './parser';
 // Main function to run the i18n key generator
 async function main() {
     // Get command line arguments
-    const args = process.argv.slice(2);
-    const inputPath = args[0] || './test-component.tsx';
-    const outputPath = args[1] || './test-component.i18n.tsx';
-    const translationsPath = args[2] || './translations.json';
-    const configPath = args[3] || './parsing-config.json';
+    // const args = process.argv.slice(2);
+    const inputPath = path.join(__dirname, './test-component.tsx') || './test-component.tsx';
+    const outputPath = path.join(__dirname, './output/test-component.i18n.tsx') || './test-component.i18n.tsx';
+    const translationsPath = path.join(__dirname, './output/translations.json') || './translations.json';
+    const configPath = path.join(__dirname, './i18n-config.json') || './i18n-config.json';
 
     console.log('I18n Key Generator');
     console.log('------------------');

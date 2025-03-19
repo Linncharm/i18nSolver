@@ -10,9 +10,9 @@ import { NodeInfo, ParsingConfig } from './types';
 
 export class I18nParser {
     private readonly config: ParsingConfig;
+    private readonly nodeTypeMap: Record<string, string>;
     private translationKeys: Record<string, string> = {};
     private nodeOccurrences: Record<string, number> = {};
-    private nodeTypeMap: Record<string, string>;
 
     constructor(configPath?: string) {
         this.config = defaultParsingConfig;
@@ -20,13 +20,10 @@ export class I18nParser {
 
         if (configPath && fs.existsSync(configPath)) {
             try {
+                // 自定义设置覆盖默认设置
                 const userConfig = fs.readJsonSync(configPath);
                 this.config = { ...this.config, ...userConfig };
-
-                // If user config has nodeTypeMap, merge it with defaults
-                if (userConfig.nodeTypeMap) {
-                    this.nodeTypeMap = { ...this.nodeTypeMap, ...userConfig.nodeTypeMap };
-                }
+                this.nodeTypeMap = { ...this.nodeTypeMap, ...userConfig.nodeTypeMap };
             } catch (error) {
                 console.warn(`Failed to load config from ${configPath}, using default config.`);
             }
