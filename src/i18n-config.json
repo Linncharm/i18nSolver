@@ -1,0 +1,31 @@
+{
+  "parsing": {
+    "components": {
+      "Combobox": {
+        "props": ["placeholder", "searchPlaceholder", "emptyText"]
+      },
+      "ClipboardButton": {
+        "props": ["tooltipCopy", "tooltipCopied"]
+      },
+      "TooltipContent": {
+        "textChild": true
+      },
+      "InstallButton": {
+        "textChild": true
+      }
+    },
+    "ignoreProps": ["className", "variant", "id", "key", "style"]
+  },
+  "nodeTypeMap": {
+    "h1": "Title",
+    "h2": "Title",
+    "h3": "Title",
+    "h4": "Title",
+    "h5": "Title",
+    "h6": "Title",
+    "p": "Subtitle",
+    "div": "Text",
+    "span": "Text",
+    "Fragment": "Text"
+  }
+}
