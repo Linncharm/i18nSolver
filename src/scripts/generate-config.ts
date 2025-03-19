@@ -2,7 +2,7 @@ import fs from 'fs-extra';
 import path from 'path';
 
 // Path to source JSON config file
-const CONFIG_PATH = path.resolve(__dirname, '../i18n-config.json');
+const CONFIG_PATH = path.resolve(__dirname, '../config/i18n-config.json');
 
 // Output paths for generated TS files
 const NODE_MAP_CONFIG_PATH = path.resolve(__dirname, '../config/default-nodemap-config.ts');
