@@ -2,7 +2,7 @@
 
 一个国际化 (i18n) 解析器，用于在 TypeScript 和 React 应用程序中提取和管理翻译。此工具自动识别代码库中的文本字符串，并根据您的配置生成适当的翻译键。
 
-[中文](README.CN.md)[English](README.md)
+[中文](README.CN.md). [English](README.md)
 
 ## 功能
 

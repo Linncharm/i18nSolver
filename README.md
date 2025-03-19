@@ -2,7 +2,7 @@
 
 A internationalization (i18n) parser for extracting and managing translations in TypeScript and React applications. This tool automatically identifies text strings in your codebase and generates appropriate translation keys according to your configuration.
 
-[中文](README.CN.md)[English](README.md)
+[中文](README.CN.md)  [English](README.md)
 
 ## Features
 
