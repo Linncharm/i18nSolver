@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState } from 'react';
 import {
   Button,
   Combobox,
@@ -6,11 +6,15 @@ import {
   TooltipContent,
   InstallButton,
   toast,
-} from "./components/components";
+} from './components/components';
+
+function t(toastTitle: string) {
+  return toastTitle;
+}
 
 const ExampleComponent: React.FC = () => {
-  const [targetLanguage, setTargetLanguage] = useState("");
-  const translations = ["Hello", "World"];
+  const [targetLanguage, setTargetLanguage] = useState('');
+  const translations = ['Hello', 'World'];
 
   const handleTargetLanguageChange = (value: string) => {
     setTargetLanguage(value);
@@ -18,43 +22,47 @@ const ExampleComponent: React.FC = () => {
 
   const getLanguageOptions = (includeAuto: boolean) => {
     return [
-      { value: "en", label: "English" },
-      { value: "es", label: "Spanish" },
-      { value: "fr", label: "French" },
+      { value: 'en', label: 'English' },
+      { value: 'es', label: 'Spanish' },
+      { value: 'fr', label: 'French' },
     ];
   };
 
   const showToast = (message: string) => {
     toast({
-      variant: "destructive",
-      title: t("toastTitle"),
-      description: t("toastDescription"),
+      variant: 'destructive',
+      title: t('toastTitle'),
+      description: t('toastDescription'),
     });
   };
 
   const steps = [
-    { id: 1, title: t("stepsTitle1"), desc: t("stepsDesc1") },
-    { id: 2, title: t("stepsTitle2"), desc: t("stepsDesc2") },
-    { id: 3, title: t("stepsTitle3"), desc: t("stepsDesc3") },
-    { id: 4, title: t("stepsTitle4"), desc: t("stepsDesc4") },
+    { id: 1, title: t('stepsTitle1'), desc: t('stepsDesc1') },
+    { id: 2, title: t('stepsTitle2'), desc: t('stepsDesc2') },
+    { id: 3, title: t('stepsTitle3'), desc: t('stepsDesc3') },
+    { id: 4, title: t('stepsTitle4'), desc: t('stepsDesc4') },
   ];
 
   return (
     <div id="grandparent">
-      {t("AreaText1")}
+      {t('SectionText1')}
 
-      <h2>{t("AreaTitle1")}</h2>
+      <div>{t('SectionJSXElement1')}</div>
+      <h2>
+        {t('SectionTitle1')}
+
+        <div>{t('SectionText2')}</div>
+      </h2>
       <div>
-        <InstallButton>{t("AreaInstallButton1")}</InstallButton>
+        <InstallButton>{t('SectionInstallButton1')}</InstallButton>
       </div>
-      <span>{t("AreaText2")}</span>
+      <span>{t('SectionText3')}</span>
       <div>
         <Button>
           {
             <>
-              {t("AreaText4")}
-
-              <span>{t("AreaText3")}</span>
+              {t('aaaa')}
+              <span>{t('bbbb')}</span>
             </>
           }
         </Button>
@@ -64,9 +72,9 @@ const ExampleComponent: React.FC = () => {
           options={getLanguageOptions(false)}
           value={targetLanguage}
           onValueChange={handleTargetLanguageChange}
-          placeholder={t("AreaComboboxPlaceholder1")}
-          searchPlaceholder={t("AreaComboboxSearchPlaceholder1")}
-          emptyText={t("AreaComboboxEmptyText1")}
+          placeholder={t('SectionComboboxPlaceholder1')}
+          searchPlaceholder={t('SectionComboboxSearchPlaceholder1')}
+          emptyText={t('SectionComboboxEmptyText1')}
           className="w-[180px]"
         />
       </div>
@@ -74,8 +82,8 @@ const ExampleComponent: React.FC = () => {
         <div>
           <ClipboardButton
             text={translations[0]}
-            tooltipCopy={t("AreaClipboardButtonTooltipCopy1")}
-            tooltipCopied={t("AreaClipboardButtonTooltipCopied1")}
+            tooltipCopy={t('PartClipboardButtonTooltipCopy1')}
+            tooltipCopied={t('PartClipboardButtonTooltipCopied1')}
           />
         </div>
       </div>
@@ -83,7 +91,7 @@ const ExampleComponent: React.FC = () => {
         <div>
           <div>
             <TooltipContent>
-              <p>{t("AreaSubtitle1")}</p>
+              <p>{t('AreaSubtitle1')}</p>
             </TooltipContent>
           </div>
         </div>

@@ -1,5 +1,5 @@
 import * as parser from '@babel/parser';
-import traverse, { NodePath } from '@babel/traverse';
+import traverse, { NodePath,Visitor } from '@babel/traverse';
 import * as t from '@babel/types';
 import generate from '@babel/generator';
 import fs from 'fs-extra';
@@ -64,12 +64,19 @@ export class I18nParser {
     return componentConfig?.textChild || false;
   }
 
-  private calculateDepth(path: any): number {
+  private calculateDepth(path: NodePath): number {
     let depth = 0;
     let currentPath = path;
 
+    // Traverse up the tree, only counting JSX element nodes
     while (currentPath.parentPath) {
-      depth++;
+      // Only increment depth for JSX elements and fragments
+      if (
+          t.isJSXElement(currentPath.parentPath.node) ||
+          t.isJSXFragment(currentPath.parentPath.node)
+      ) {
+        depth++;
+      }
       currentPath = currentPath.parentPath;
     }
 
@@ -151,105 +158,6 @@ export class I18nParser {
     return key;
   }
 
-  private processLogicVariables(ast: t.File): void {
-    traverse(ast, {
-      VariableDeclarator: path => {
-        if (t.isIdentifier(path.node.id) && t.isArrayExpression(path.node.init)) {
-          const variableName = path.node.id.name;
-          const arrayItems = path.node.init.elements;
-
-          arrayItems.forEach((item, index) => {
-            if (t.isObjectExpression(item)) {
-              item.properties.forEach(prop => {
-                if (
-                  t.isObjectProperty(prop) &&
-                  t.isIdentifier(prop.key) &&
-                  t.isStringLiteral(prop.value) &&
-                  !this.isInIgnoreList(prop.key.name)
-                ) {
-                  const propName = prop.key.name;
-                  const text = prop.value.value;
-
-                  // Skip empty strings
-                  if (!text.trim()) return;
-
-                  // Generate key for logic variable
-                  const keyName = `${variableName}${propName.charAt(0).toUpperCase() + propName.slice(1)}${index + 1}`;
-                  this.translationKeys[keyName] = text;
-
-                  // Replace with t() call
-                  prop.value = t.callExpression(t.identifier('t'), [t.stringLiteral(keyName)]);
-                }
-              });
-            }
-          });
-        }
-
-        // Process object literals assigned to variables
-        if (t.isIdentifier(path.node.id) && t.isObjectExpression(path.node.init)) {
-          const variableName = path.node.id.name;
-          const objectProps = path.node.init.properties;
-
-          objectProps.forEach(prop => {
-            if (
-              t.isObjectProperty(prop) &&
-              t.isIdentifier(prop.key) &&
-              t.isStringLiteral(prop.value) &&
-              !this.isInIgnoreList(prop.key.name)
-            ) {
-              const propName = prop.key.name;
-              const text = prop.value.value;
-
-              // Skip empty strings
-              if (!text.trim()) return;
-
-              // Generate key for object property
-              const keyName = `${variableName}${propName.charAt(0).toUpperCase() + propName.slice(1)}`;
-              this.translationKeys[keyName] = text;
-
-              // Replace with t() call
-              prop.value = t.callExpression(t.identifier('t'), [t.stringLiteral(keyName)]);
-            }
-          });
-        }
-      },
-
-      // Process object properties in call expressions (like toast)
-      ObjectProperty: path => {
-        if (
-          t.isIdentifier(path.node.key) &&
-          t.isStringLiteral(path.node.value) &&
-          !this.isInIgnoreList(path.node.key.name)
-        ) {
-          // Check if we're in a toast or similar function call
-          const callExprPath = path.findParent(p => {
-            return t.isCallExpression(p.node);
-          });
-
-          if (
-            callExprPath &&
-            t.isCallExpression(callExprPath.node) &&
-            t.isIdentifier(callExprPath.node.callee)
-          ) {
-            const funcName = callExprPath.node.callee.name;
-            const propName = path.node.key.name;
-            const text = path.node.value.value;
-
-            // Skip empty strings
-            if (!text.trim()) return;
-
-            // Generate key for function call property
-            const keyName = `${funcName}${propName.charAt(0).toUpperCase() + propName.slice(1)}`;
-            this.translationKeys[keyName] = text;
-
-            // Replace with t() call
-            path.node.value = t.callExpression(t.identifier('t'), [t.stringLiteral(keyName)]);
-          }
-        }
-      },
-    });
-  }
-
   private processJSXElements(ast: t.File): void {
     traverse(ast, {
       JSXElement: path => {
@@ -291,44 +199,6 @@ export class I18nParser {
     });
   }
 
-  private processJSXFragments(ast: t.File): void {
-    traverse(ast, {
-      JSXFragment: path => {
-        // Process text nodes in JSX fragments (<></>)
-        path.node.children.forEach((child, index) => {
-          if (t.isJSXText(child)) {
-            const text = child.value.trim();
-            // Skip empty text
-            if (!text) return;
-
-            const depth = this.calculateDepth(path);
-
-            // Use Fragment as the component name
-            const baseKey = 'Fragment';
-            this.nodeOccurrences[baseKey] = (this.nodeOccurrences[baseKey] || 0) + 1;
-
-            const info: NodeInfo = {
-              text,
-              ancestorDepth: depth,
-              parentNode: {
-                type: this.getNodeType(path.node), // Will return Fragment type
-                name: 'Fragment',
-              },
-              occurrence: this.nodeOccurrences[baseKey],
-            };
-
-            const key = this.generateTranslationKey(info);
-
-            // Replace with t() call wrapped in expression container
-            path.node.children[index] = t.jsxExpressionContainer(
-              t.callExpression(t.identifier('t'), [t.stringLiteral(key)])
-            );
-          }
-        });
-      },
-    });
-  }
-
   /**
    * Generates code from AST and formats it with Prettier
    * @param ast The Babel AST to generate code from
@@ -360,7 +230,7 @@ export class I18nParser {
   private async formatWithPrettier(code: string): Promise<string> {
     try {
       // Load project's Prettier configuration
-      const prettierConfig = await prettier.resolveConfig(process.cwd());
+      const prettierConfig = await prettier.resolveConfig(path.join(__dirname, '../prettierrc.js'));
 
       // Determine appropriate parser based on current file
       const parser = this.determinePrettierParser();
@@ -393,9 +263,9 @@ export class I18nParser {
       plugins: ['jsx', 'typescript'],
     });
 
-    // First pass: collect info about string literals
-    traverse(ast, {
-      StringLiteral: path => {
+    const visitor: Visitor = {
+
+      "StringLiteral": path => {
         // Skip empty strings
         if (!path.node.value.trim()) return;
 
@@ -413,7 +283,7 @@ export class I18nParser {
           const jsxElement = path.findParent(p => t.isJSXElement(p.node));
           if (jsxElement) {
             const componentName = (
-              (jsxElement.node as t.JSXElement).openingElement.name as t.JSXIdentifier
+                (jsxElement.node as t.JSXElement).openingElement.name as t.JSXIdentifier
             ).name;
 
             if (this.shouldProcessComponentProp(componentName, attributeName)) {
@@ -437,45 +307,166 @@ export class I18nParser {
 
               // Replace with t() call
               path.replaceWith(
-                t.jsxExpressionContainer(
-                  t.callExpression(t.identifier('t'), [t.stringLiteral(key)])
-                )
+                  t.jsxExpressionContainer(
+                      t.callExpression(t.identifier('t'), [t.stringLiteral(key)])
+                  )
               );
             }
           }
         }
 
         // Handle object properties (like in toast calls)
-        // Handle object properties (like in toast calls)
-        if (t.isObjectProperty(path.parent) && t.isIdentifier(path.parent.key)) {
-          const propName = path.parent.key.name;
+        // if (t.isObjectProperty(path.parent) && t.isIdentifier(path.parent.key)) {
+        //   const propName = path.parent.key.name;
+        //
+        //   // Skip ignored props
+        //   if (this.isInIgnoreList(propName)) return;
+        //
+        //   // Check if part of a function call
+        //   const callExprPath = path.findParent(p => {
+        //     return t.isCallExpression(p.node);
+        //   });
+        //
+        //   if (
+        //       callExprPath &&
+        //       t.isCallExpression(callExprPath.node) &&
+        //       t.isIdentifier(callExprPath.node.callee)
+        //   ) {
+        //     const funcName = callExprPath.node.callee.name;
+        //     const text = path.node.value;
+        //
+        //     const keyName = `${funcName}${propName.charAt(0).toUpperCase() + propName.slice(1)}`;
+        //     this.translationKeys[keyName] = text;
+        //
+        //     // Replace with t() call
+        //     path.replaceWith(t.callExpression(t.identifier('t'), [t.stringLiteral(keyName)]));
+        //   }
+        // }
 
-          // Skip ignored props
-          if (this.isInIgnoreList(propName)) return;
+        // 表达式容器位于 JSX 元素内（如 h2）)
+        if (t.isJSXExpressionContainer(path.parent) && t.isJSXElement(path.parentPath?.parent)) {
+          // 跳过空字符串和已翻译的文本
+          if (!path.node.value.trim()) return;
+          if (this.isAlreadyTranslated(path.parent)) return;
 
-          // Check if part of a function call
-          const callExprPath = path.findParent(p => {
-            return t.isCallExpression(p.node);
-          });
+          // 获取包裹此字符串的 JSX 元素信息（如 h2）
+          const jsxElement = path.parentPath.parent as t.JSXElement;
+          const componentName = (
+              jsxElement.openingElement.name as t.JSXIdentifier
+          ).name;
 
-          if (
-            callExprPath &&
-            t.isCallExpression(callExprPath.node) &&
-            t.isIdentifier(callExprPath.node.callee)
-          ) {
-            const funcName = callExprPath.node.callee.name;
-            const text = path.node.value;
+          // 跳过忽略的组件（按需配置）
+          if (this.isInIgnoreList(componentName)) return;
 
-            const keyName = `${funcName}${propName.charAt(0).toUpperCase() + propName.slice(1)}`;
-            this.translationKeys[keyName] = text;
+          // 生成翻译键
+          const depth = this.calculateDepth(path);
+          const baseKey = `${componentName}`;
+          this.nodeOccurrences[baseKey] = (this.nodeOccurrences[baseKey] || 0) + 1;
 
-            // Replace with t() call
-            path.replaceWith(t.callExpression(t.identifier('t'), [t.stringLiteral(keyName)]));
-          }
+          const info: NodeInfo = {
+            text: path.node.value,
+            ancestorDepth: depth,
+            parentNode: {
+              type: 'JSXElement',
+              name: componentName,
+            },
+            occurrence: this.nodeOccurrences[baseKey],
+          };
+
+          const key = this.generateTranslationKey(info);
+
+          // 替换为 t() 调用
+          path.replaceWith(
+              t.callExpression(t.identifier('t'), [t.stringLiteral(key)])
+          );
+
+          // 记录翻译键
+          this.translationKeys[key] = path.node.value;
         }
       },
 
-      JSXText: path => {
+      "JSXFragment": path => {
+        // Process text nodes in JSX fragments (<></>)
+        path.node.children.forEach((child, index) => {
+          if (t.isJSXText(child)) {
+            const text = child.value.trim();
+            // Skip empty text
+            if (!text) return;
+            // 检查是否已翻译
+            if (this.isAlreadyTranslated(child)) return;
+
+            const depth = this.calculateDepth(path);
+
+            // Use Fragment as the component name
+            const baseKey = 'Fragment';
+            this.nodeOccurrences[baseKey] = (this.nodeOccurrences[baseKey] || 0) + 1;
+
+            const info: NodeInfo = {
+              text,
+              ancestorDepth: depth,
+              parentNode: {
+                type: this.getNodeType(path.node), // Will return Fragment type
+                name: 'Fragment',
+              },
+              occurrence: this.nodeOccurrences[baseKey],
+            };
+
+            const key = this.generateTranslationKey(info);
+            // Replace with t() call wrapped in expression container
+            path.node.children[index] = t.jsxExpressionContainer(
+                t.callExpression(t.identifier('t'), [t.stringLiteral(key)])
+            );
+          }
+
+          // 处理表达式容器，例如 <>{"fragment"}</>
+          if (t.isJSXExpressionContainer(child)) {
+            // 检查表达式容器中是否包含字符串字面量
+            if (t.isStringLiteral(child.expression)) {
+              const textValue = child.expression.value;
+
+              // 跳过空字符串
+              if (!textValue.trim()) return;
+
+              // 检查是否已翻译
+              if (this.isAlreadyTranslated(child)) return;
+
+              const componentName = 'Fragment';
+
+              // 跳过忽略的组件（按需配置）
+              if (this.isInIgnoreList(componentName)) return;
+
+              // 生成翻译键
+              const depth = this.calculateDepth(path);
+              const baseKey = `${componentName}`;
+              this.nodeOccurrences[baseKey] = (this.nodeOccurrences[baseKey] || 0) + 1;
+
+              const info: NodeInfo = {
+                text: textValue,
+                ancestorDepth: depth,
+                parentNode: {
+                  type: 'Fragment',
+                  name: componentName,
+                },
+                occurrence: this.nodeOccurrences[baseKey],
+              };
+
+              const key = this.generateTranslationKey(info);
+
+              // 替换表达式容器中的内容，而不是整个 Fragment
+              child.expression = t.callExpression(
+                  t.identifier('t'),
+                  [t.stringLiteral(key)]
+              );
+
+              // 记录翻译键
+              this.translationKeys[key] = textValue;
+            }
+          }
+
+        });
+      },
+
+      "JSXText": path => {
         const text = path.node.value.trim();
         // Skip empty text
         if (!text) return;
@@ -504,27 +495,82 @@ export class I18nParser {
 
           // Replace with t() call wrapped in expression container
           path.replaceWith(
-            t.jsxExpressionContainer(t.callExpression(t.identifier('t'), [t.stringLiteral(key)]))
+              t.jsxExpressionContainer(t.callExpression(t.identifier('t'), [t.stringLiteral(key)]))
           );
         }
       },
-    });
 
-    // Process special component texts
-    this.processJSXElements(ast);
-    this.processJSXFragments(ast); // Add this line to process fragments
+      "VariableDeclarator": path => {
+        if (t.isIdentifier(path.node.id) && t.isArrayExpression(path.node.init)) {
+          const variableName = path.node.id.name;
+          const arrayItems = path.node.init.elements;
 
-    // Process logic variables and objects
-    this.processLogicVariables(ast);
+          arrayItems.forEach((item, index) => {
+            if (t.isObjectExpression(item)) {
+              item.properties.forEach(prop => {
+                if (
+                    t.isObjectProperty(prop) &&
+                    t.isIdentifier(prop.key) &&
+                    t.isStringLiteral(prop.value) &&
+                    !this.isInIgnoreList(prop.key.name)
+                ) {
+                  const propName = prop.key.name;
+                  const text = prop.value.value;
 
-    const output = generate(ast, {
-      retainLines: true,
-      compact: false,
-      jsescOption: {
-        minimal: true,
+                  // Skip empty strings
+                  if (!text.trim()) return;
+
+                  // Generate key for logic variable
+                  const keyName = `${variableName}${propName.charAt(0).toUpperCase() + propName.slice(1)}${index + 1}`;
+                  this.translationKeys[keyName] = text;
+
+                  // Replace with t() call
+                  prop.value = t.callExpression(t.identifier('t'), [t.stringLiteral(keyName)]);
+                }
+              });
+            }
+          });
+        }
+
       },
-      concise: false,
-    });
+
+      // Process object properties in call expressions (like toast)
+      "ObjectProperty": path => {
+        if (
+            t.isIdentifier(path.node.key) &&
+            t.isStringLiteral(path.node.value) &&
+            !this.isInIgnoreList(path.node.key.name)
+        ) {
+          // Check if we're in a toast or similar function call
+          const callExprPath = path.findParent(p => {
+            return t.isCallExpression(p.node);
+          });
+
+          if (
+              callExprPath &&
+              t.isCallExpression(callExprPath.node) &&
+              t.isIdentifier(callExprPath.node.callee)
+          ) {
+            const funcName = callExprPath.node.callee.name;
+            const propName = path.node.key.name;
+            const text = path.node.value.value;
+
+            // Skip empty strings
+            if (!text.trim()) return;
+
+            // Generate key for function call property
+            const keyName = `${funcName}${propName.charAt(0).toUpperCase() + propName.slice(1)}`;
+            this.translationKeys[keyName] = text;
+
+            // Replace with t() call
+            path.node.value = t.callExpression(t.identifier('t'), [t.stringLiteral(keyName)]);
+          }
+        }
+      },
+    }
+
+    // First pass: collect info about string literals
+    traverse(ast,visitor);
 
     // Generate and format code
     const formattedCode = await this.generateFormattedCode(ast);
@@ -544,7 +590,7 @@ export class I18nParser {
 
     if (outputPath) {
       fs.ensureDirSync(path.dirname(outputPath));
-      fs.writeFileSync(outputPath, result.code);
+      fs.writeFileSync(filePath, result.code);
     }
 
     return result;

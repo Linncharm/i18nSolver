@@ -8,6 +8,10 @@ import {
   toast,
 } from './components/components';
 
+function t(toastTitle: string) {
+    return toastTitle;
+}
+
 const ExampleComponent: React.FC = () => {
   const [targetLanguage, setTargetLanguage] = useState('');
   const translations = ['Hello', 'World'];
@@ -41,8 +45,12 @@ const ExampleComponent: React.FC = () => {
 
   return (
     <div id="grandparent">
-      Welcome to the translation tool
-      <h2>Image Translation Service</h2>
+        Welcome to the translation tool
+        <div>{"Welcome to the translation tool"}</div>
+      <h2>
+          Image Translation Service
+      <div>test</div>
+      </h2>
       <div>
         <InstallButton>Start Installation</InstallButton>
       </div>
@@ -51,8 +59,8 @@ const ExampleComponent: React.FC = () => {
         <Button>
           {
             <>
-              fragment
-              <span>span</span>
+                {t('aaaa')}
+            <span>{t('bbbb')}</span>
             </>
           }
         </Button>
