@@ -572,6 +572,11 @@ export class I18nParser {
     // First pass: collect info about string literals
     traverse(ast,visitor);
 
+    // Second pass: add next-intl imports and t declaration if needed
+    // if (this.needsImport && !this.hasNextIntlImport) {
+    //   this.addNextIntlImports(ast, domainName);
+    // }
+
     // Generate and format code
     const formattedCode = await this.generateFormattedCode(ast);
 
