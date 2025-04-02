@@ -67,7 +67,7 @@ export const ClipboardButton: React.FC<ClipboardButtonProps> = ({
   tooltipCopy,
   tooltipCopied,
 }) => {
-  return <button title={tooltipCopy}>{t('SectionText4')}</button>;
+  return <button title={tooltipCopy}>{'SectionText4'}</button>;
 };
 
 interface TooltipContentProps {

@@ -1,19 +1,13 @@
 import path from 'path';
 import fs from 'fs-extra';
+
 import { I18nParser } from './parser';
 import { PathResolver } from './pathResolver';
 import { AstProcessor } from './astProcessor';
-import { CodeGenerator } from './generator';
-import {glob} from 'glob';
 
-// 在顶部初始化配置，并将所有类实例化
-const configPath = path.resolve(process.cwd(), 'i18n-config.json'); // 自定义配置
-// 1. 初始化parser
-const parser = new I18nParser();
-// 2. 初始化processor
-const astProcessor = new AstProcessor();
-// 3. 初始化generator
-const generator = new CodeGenerator();
+import { I18nService } from './service';
+import { CodeGenerator } from './generator';
+
 
 const handleUpdateTranslations = (translationsPath:string,translations:Record<string,string>) => {
   if (fs.existsSync(translationsPath)) {
@@ -41,10 +35,15 @@ const processFile = async(
     namespace:string,
     filePath: string,
     outputDir: string,
-    translationsPath: string
+    translationsPath: string,
+    processingService:{
+      parser: I18nParser;
+      astProcessor: AstProcessor;
+      generator: CodeGenerator;
+    }
 ): Promise<void> => {
   try {
-    console.log(`Processing file: ${filePath}`);
+    const { parser, astProcessor, generator } = processingService;
 
     // Determine output path (maintaining directory structure)
     const relativePath = path.relative(path.join(process.cwd(), 'src'), filePath);
@@ -115,7 +114,17 @@ const main = async () => {
 
   const srcDir = path.resolve(process.cwd(), 'src');
 
+  // 在顶部初始化配置，并将所有类实例化
+  const configPath = path.resolve(process.cwd(), 'i18n-config.json'); // 自定义配置
 
+  // 初始化服务和 context
+  const service = I18nService.getInstance();
+
+  const processingService = {
+    parser: service.getParser(),
+    astProcessor: service.getProcessor(),
+    generator: service.getGenerator()
+  };
 
   console.log('path Generator');
   console.log('------------------');
@@ -134,11 +143,17 @@ const main = async () => {
   // Ensure output directory exists
   fs.ensureDirSync(outputDir);
 
-  try {
 
+  try {
     // Process each file
     for (const file of files!) {
-      await processFile(file.namespace ,file.absolutePath, outputDir, translationsPath);
+      await processFile(
+        file.namespace ,
+        file.absolutePath,
+        outputDir,
+        translationsPath,
+        processingService
+      );
     }
 
     console.log('\n✅ Successfully processed all files');

@@ -8,10 +8,6 @@ import {
   toast,
 } from './components/components';
 
-function t(toastTitle: string) {
-  return toastTitle;
-}
-
 const ExampleComponent: React.FC = () => {
   const [targetLanguage, setTargetLanguage] = useState('');
   const translations = ['Hello', 'World'];
@@ -31,38 +27,32 @@ const ExampleComponent: React.FC = () => {
   const showToast = (message: string) => {
     toast({
       variant: 'destructive',
-      title: t('toastTitle'),
-      description: t('toastDescription'),
+      title: 'Error Occurred',
+      description: 'Image size is too large. Please select a smaller image.',
     });
   };
 
   const steps = [
-    { id: 1, title: t('stepsTitle1'), desc: t('stepsDesc1') },
-    { id: 2, title: t('stepsTitle2'), desc: t('stepsDesc2') },
-    { id: 3, title: t('stepsTitle3'), desc: t('stepsDesc3') },
-    { id: 4, title: t('stepsTitle4'), desc: t('stepsDesc4') },
+    { id: 1, title: 'Upload Image', desc: 'Click here to upload your image' },
+    { id: 2, title: 'Select Language', desc: 'Click to select target language' },
+    { id: 3, title: 'Select Service', desc: 'Click to select service' },
+    { id: 4, title: 'Success', desc: 'Translation completed successfully' },
   ];
 
   return (
     <div id="grandparent">
-      {t('SectionText1')}
-
-      <div>{t('SectionJSXElement1')}</div>
-      <h2>
-        {t('SectionTitle1')}
-
-        <div>{t('SectionText2')}</div>
-      </h2>
+      Welcome to the translation tool
+      <h2>Image Translation Service</h2>
       <div>
-        <InstallButton>{t('SectionInstallButton1')}</InstallButton>
+        <InstallButton>Start Installation</InstallButton>
       </div>
-      <span>{t('SectionText3')}</span>
+      <span>Please follow the steps below</span>
       <div>
         <Button>
           {
             <>
-              {t('aaaa')}
-              <span>{t('bbbb')}</span>
+              fragment
+              <span>span</span>
             </>
           }
         </Button>
@@ -72,9 +62,9 @@ const ExampleComponent: React.FC = () => {
           options={getLanguageOptions(false)}
           value={targetLanguage}
           onValueChange={handleTargetLanguageChange}
-          placeholder={t('SectionComboboxPlaceholder1')}
-          searchPlaceholder={t('SectionComboboxSearchPlaceholder1')}
-          emptyText={t('SectionComboboxEmptyText1')}
+          placeholder="Select a language"
+          searchPlaceholder="Search for a language"
+          emptyText="No language found"
           className="w-[180px]"
         />
       </div>
@@ -82,8 +72,8 @@ const ExampleComponent: React.FC = () => {
         <div>
           <ClipboardButton
             text={translations[0]}
-            tooltipCopy={t('PartClipboardButtonTooltipCopy1')}
-            tooltipCopied={t('PartClipboardButtonTooltipCopied1')}
+            tooltipCopy="Copy translation"
+            tooltipCopied="Copied!"
           />
         </div>
       </div>
@@ -91,7 +81,7 @@ const ExampleComponent: React.FC = () => {
         <div>
           <div>
             <TooltipContent>
-              <p>{t('AreaSubtitle1')}</p>
+              <p>Play audio</p>
             </TooltipContent>
           </div>
         </div>
