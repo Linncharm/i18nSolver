@@ -1,0 +1,151 @@
+{
+  "processing": {
+    "components": {
+      "a": {
+        "props": [],
+        "textChild": true
+      },
+      "button": {
+        "props": [
+          "aria-label"
+        ],
+        "textChild": true
+      },
+      "Button": {
+        "props": [],
+        "textChild": true
+      },
+      "ClipboardButton": {
+        "props": [
+          "tooltipCopied",
+          "tooltipCopy"
+        ]
+      },
+      "Combobox": {
+        "props": [
+          "emptyText",
+          "placeholder",
+          "searchPlaceholder"
+        ]
+      },
+      "CopyButton": {
+        "props": [
+          "errorText",
+          "successText"
+        ]
+      },
+      "div": {
+        "props": [],
+        "textChild": true
+      },
+      "FAQ": {
+        "props": [
+          "description",
+          "title"
+        ]
+      },
+      "FAQClient": {
+        "props": [
+          "description",
+          "title"
+        ]
+      },
+      "h1": {
+        "props": [],
+        "textChild": true
+      },
+      "h2": {
+        "props": [],
+        "textChild": true
+      },
+      "h3": {
+        "props": [],
+        "textChild": true
+      },
+      "Input": {
+        "props": [
+          "label",
+          "placeholder"
+        ]
+      },
+      "InputField": {
+        "props": [
+          "label",
+          "placeholder"
+        ]
+      },
+      "Link": {
+        "props": [
+          "aria-label"
+        ]
+      },
+      "meta": {
+        "props": [
+          "content"
+        ]
+      },
+      "NoticeItem": {
+        "props": [
+          "text"
+        ]
+      },
+      "option": {
+        "props": [],
+        "textChild": true
+      },
+      "p": {
+        "props": [],
+        "textChild": true
+      },
+      "PaypalInputClient": {
+        "props": [
+          "placeholder",
+          "saveButtonText"
+        ]
+      },
+      "ReactCompareSliderImage": {
+        "props": [
+          "alt"
+        ]
+      },
+      "span": {
+        "props": [],
+        "textChild": true
+      },
+      "StatsCard": {
+        "props": [
+          "subtext",
+          "title"
+        ]
+      },
+      "strong": {
+        "props": [],
+        "textChild": true
+      },
+      "TabWrapper": {
+        "props": [
+          "assetsLabel",
+          "detailsLabel",
+          "overviewLabel",
+          "statisticsLabel"
+        ]
+      },
+      "Textarea": {
+        "props": [
+          "placeholder"
+        ]
+      },
+      "TranslationPreview": {
+        "props": [
+          "targetText"
+        ]
+      }
+    },
+    "ignoreProps": [
+      "className",
+      "id",
+      "key",
+      "style"
+    ]
+  }
+}

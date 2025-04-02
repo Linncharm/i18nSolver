@@ -133,10 +133,11 @@ const resolvePath = async (srcDir:string) => {
     include: [
       '**/*.tsx',
       'app/[locale]/**/*.tsx',  // 包含 app/[locale] 下的所有 tsx 文件
-      'components/**/*.tsx'     // 包含 components 下的所有 tsx 文件
     ],
     exclude: [
-      'components/common/**/*.tsx'  // 排除 common 组件
+      '**/components/**/*.tsx',  // 排除任何位置的 components 目录下的 tsx 文件
+      'components/**/*.tsx',  // 排除 common 组件,
+      'app/[locale]/(policy)/privacy/*.tsx'
     ]
   });
 
@@ -144,15 +145,7 @@ const resolvePath = async (srcDir:string) => {
     // 解析文件并获取结果
     const files = await pathResolver.resolveFiles();
 
-    // 打印结果
     console.log('找到的文件数量:', files.length);
-    // console.log('\n文件详情:');
-    // files.forEach((file, index) => {
-    //   console.log(`\n文件 ${index + 1}:`);
-    //   console.log('绝对路径:', file.absolutePath);
-    //   console.log('命名空间:', file.namespace);
-    //   console.log('文件内容长度:', file.content.length);1
-    // });
 
     return files;
 
@@ -165,7 +158,7 @@ const resolvePath = async (srcDir:string) => {
 // Main function to run the i18n key generator
 const main = async () => {
 
-  const srcDir = path.resolve(process.cwd(), 'src');
+  const srcDir = path.resolve(process.cwd(), '../lufe-homepage/src');
 
   // 在顶部初始化配置，并将所有类实例化
   const configPath = path.resolve(process.cwd(), 'i18n-config.json'); // 自定义配置

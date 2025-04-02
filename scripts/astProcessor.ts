@@ -7,6 +7,7 @@ import { defaultNodeType } from './constants'; // 引入默认的节点类型映
 
 import { defaultConfig } from './config/default-config';
 
+// TODO 对于页面内引用的组件，会被重复解析，需要根据ignore规则进行判断然后忽略
 interface NodeInfo {
   text: string;
   ancestorDepth: number;

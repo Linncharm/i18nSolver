@@ -6,7 +6,8 @@
     "test": "ts-node scripts/index.ts",
     "test:path": "ts-node scripts/pathTest.ts",
     "generate": "ts-node scripts/config/generate-config.ts",
-    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\""
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "preprocess":"ts-node scripts/preprocess.ts"
   },
   "keywords": [],
   "author": "",
