@@ -1,4 +1,7 @@
-export interface ParsingConfig {
+import { Options } from 'prettier';
+import { GeneratorOptions } from '@babel/generator';
+
+export interface ProcessingConfig {
   components: {
     [componentName: string]: {
       props?: string[];
@@ -7,6 +10,19 @@ export interface ParsingConfig {
   };
   ignoreProps: string[];
 }
+
+export interface GeneratorConfig {
+  prettier: Options;
+  babel: GeneratorOptions;
+}
+
+// 统一配置接口
+export interface ServiceConfig {
+  processing: ProcessingConfig
+  nodeTypeMap: Record<string, string>
+  generator: GeneratorConfig
+}
+
 
 export interface NodeInfo {
   text: string;
@@ -17,9 +33,4 @@ export interface NodeInfo {
   };
   propName?: string;
   occurrence: number;
-}
-
-export interface I18nConfig {
-  parsing: ParsingConfig;
-  nodeTypeMap: Record<string, string>;
 }

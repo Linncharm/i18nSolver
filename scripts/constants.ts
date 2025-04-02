@@ -1,0 +1,1 @@
+export const defaultNodeType = 'Text';

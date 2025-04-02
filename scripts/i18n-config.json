@@ -1,11 +1,18 @@
 {
-  "parsing": {
+  "processing": {
     "components": {
       "Combobox": {
-        "props": ["placeholder", "searchPlaceholder", "emptyText"]
+        "props": [
+          "placeholder",
+          "searchPlaceholder",
+          "emptyText"
+        ]
       },
       "ClipboardButton": {
-        "props": ["tooltipCopy", "tooltipCopied"]
+        "props": [
+          "tooltipCopy",
+          "tooltipCopied"
+        ]
       },
       "TooltipContent": {
         "textChild": true
@@ -14,7 +21,13 @@
         "textChild": true
       }
     },
-    "ignoreProps": ["className", "variant", "id", "key", "style"]
+    "ignoreProps": [
+      "className",
+      "variant",
+      "id",
+      "key",
+      "style"
+    ]
   },
   "nodeTypeMap": {
     "h1": "Title",
@@ -27,5 +40,42 @@
     "div": "Text",
     "span": "Text",
     "Fragment": "Text"
+  },
+  "generator": {
+    "prettier": {
+      "printWidth": 100,
+      "tabWidth": 2,
+      "useTabs": false,
+      "semi": true,
+      "singleQuote": true,
+      "trailingComma": "es5",
+      "bracketSpacing": true,
+      "jsxBracketSameLine": false,
+      "arrowParens": "avoid",
+      "parser": "typescript",
+      "endOfLine": "lf",
+      "overrides": [
+        {
+          "files": "*.tsx",
+          "options": {
+            "jsxBracketSameLine": false
+          }
+        },
+        {
+          "files": "*.jsx",
+          "options": {
+            "jsxBracketSameLine": false
+          }
+        }
+      ]
+    },
+    "babel": {
+      "retainLines": true,
+      "compact": false,
+      "jsescOption": {
+        "minimal": true
+      },
+      "concise": false
+    }
   }
 }

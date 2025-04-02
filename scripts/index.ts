@@ -2,32 +2,47 @@ import path from 'path';
 import fs from 'fs-extra';
 import { I18nParser } from './parser';
 import { PathResolver } from './pathResolver';
+import { AstProcessor } from './astProcessor';
+import { CodeGenerator } from './generator';
 import {glob} from 'glob';
 
-function getDomainName(filePath: string): string {
-  // Extract file name without extension
-  const fileName = path.basename(filePath, path.extname(filePath));
+// 在顶部初始化配置，并将所有类实例化
+const configPath = path.resolve(process.cwd(), 'i18n-config.json'); // 自定义配置
+// 1. 初始化parser
+const parser = new I18nParser();
+// 2. 初始化processor
+const astProcessor = new AstProcessor();
+// 3. 初始化generator
+const generator = new CodeGenerator();
 
-  // If filename is page or layout, use parent directory name instead
-  if (['page', 'layout'].includes(fileName.toLowerCase())) {
-    // Get parent directory name
-    const parentDirName = path.basename(path.dirname(filePath));
-    // First letter to uppercase for proper naming convention
-    return parentDirName.charAt(0).toUpperCase() + parentDirName.slice(1);
+const handleUpdateTranslations = (translationsPath:string,translations:Record<string,string>) => {
+  if (fs.existsSync(translationsPath)) {
+    // 如果文件存在，读取并更新
+    const existingTranslations = fs.readJSONSync(translationsPath, { throws: false }) || {};
+    const mergedTranslations = { ...existingTranslations, ...translations };
+    fs.writeJSONSync(translationsPath, mergedTranslations, { spaces: 2 });
   }
+  else {
+    // 如果文件不存在，创建一个新的 translations.json
+    console.log('Creating new translations.json file');
+    // 确保目录存在
+    const dir = path.dirname(translationsPath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    // 创建一个新的 translations.json
+    fs.writeJSONSync(translationsPath, translations, { spaces: 2 });
 
-  // Otherwise use the filename with first letter uppercase
-  return fileName.charAt(0).toUpperCase() + fileName.slice(1);
+  }
 }
 
 // Process a single file
-async function processFile(
-    parser: I18nParser,
+const processFile = async(
     namespace:string,
     filePath: string,
     outputDir: string,
     translationsPath: string
-): Promise<void> {
+): Promise<void> => {
   try {
     console.log(`Processing file: ${filePath}`);
 
@@ -40,22 +55,21 @@ async function processFile(
 
     console.log("!!!", filePath)
     console.log("@@@", outputPath)
-    // Parse and transform the file
-    const result = await parser.parseFile(
-      filePath,
-      namespace,
-      outputPath
-    );
+    // 1。解析文件，获取ast
+    const originalAst = parser.parseFile(filePath,);
 
-    // Update translations file with new entries
-    const existingTranslations = fs.existsSync(translationsPath)
-        ? fs.readJSONSync(translationsPath, { throws: false }) || {}
-        : {};
+    // 2. 处理ast，返回处理后的ast以及翻译文本
+    const { processedAST,translations } = astProcessor.processAST(originalAst);
 
-    const mergedTranslations = { ...existingTranslations, ...result.translations };
-    fs.writeJSONSync(translationsPath, mergedTranslations, { spaces: 2 });
+    // 3. 将处理好后的ast进行格式化处理，并生成code
+    const formattedCode = await generator.generateFormattedCode(processedAST);
 
-    console.log(`✅ Processed ${filePath} -> ${outputPath}`);
+    // 4. 更新 translations.json 文件
+    handleUpdateTranslations(translationsPath, translations);
+
+    // 5. 写回文件
+    fs.writeFileSync(outputPath, formattedCode);
+
   } catch (error) {
     console.error(`❌ Error processing file ${filePath}:`, error);
   }
@@ -97,9 +111,11 @@ const resolvePath = async (srcDir:string) => {
 
 
 // Main function to run the i18n key generator
-async function main() {
+const main = async () => {
 
   const srcDir = path.resolve(process.cwd(), 'src');
+
+
 
   console.log('path Generator');
   console.log('------------------');
@@ -114,9 +130,6 @@ async function main() {
 
   const outputDir = path.resolve(process.cwd(), 'output');
   const translationsPath = path.resolve(outputDir, 'translations.json');
-  const configPath = path.resolve(process.cwd(), 'i18n-config.json');
-  // Create parser with optional config
-  const parser = new I18nParser(fs.existsSync(configPath) ? configPath : undefined);
 
   // Ensure output directory exists
   fs.ensureDirSync(outputDir);
@@ -125,7 +138,7 @@ async function main() {
 
     // Process each file
     for (const file of files!) {
-      await processFile(parser, file.namespace ,file.absolutePath, outputDir, translationsPath);
+      await processFile(file.namespace ,file.absolutePath, outputDir, translationsPath);
     }
 
     console.log('\n✅ Successfully processed all files');

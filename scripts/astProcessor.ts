@@ -1,7 +1,11 @@
+import fs from 'fs-extra';
+
 import * as t from '@babel/types';
 import traverse, { NodePath, Visitor } from '@babel/traverse';
-import { defaultNodeTypeMap, defaultNodeType } from './config/default-nodemap-config';
-import { ParsingConfig } from './types';
+import { ProcessingConfig, ServiceConfig } from './types';
+import { defaultNodeType } from './constants'; // 引入默认的节点类型映射
+
+import { defaultConfig } from './config/default-config';
 
 interface NodeInfo {
   text: string;
@@ -15,14 +19,25 @@ interface NodeInfo {
 }
 
 export class AstProcessor {
-  private readonly config: ParsingConfig;
+  private readonly config: ProcessingConfig;
   private readonly nodeTypeMap: Record<string, string>;
   private translationKeys: Record<string, string> = {};
   private nodeOccurrences: Record<string, number> = {};
 
-  constructor(config: ParsingConfig) {
-    this.config = config;
-    this.nodeTypeMap = defaultNodeTypeMap;
+  constructor(configPath?: string) {
+    this.config = defaultConfig.processing;
+    this.nodeTypeMap = defaultConfig.nodeTypeMap;
+    // 合并自定义配置
+    if (configPath && fs.existsSync(configPath)) {
+      try {
+        const userConfig = fs.readJsonSync(configPath) as ServiceConfig;
+        this.config = { ...this.config, ...userConfig.processing };
+        this.nodeTypeMap = { ...this.nodeTypeMap, ...userConfig.nodeTypeMap }; // 合并自定义的 nodeTypeMap
+      } catch (error) {
+        console.warn(`Failed to load config from ${configPath}, using default config.`);
+      }
+    }
+
   }
 
   private isAlreadyTranslated(node: t.Node): boolean {
