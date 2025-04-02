@@ -8,27 +8,80 @@ import { AstProcessor } from './astProcessor';
 import { I18nService } from './service';
 import { CodeGenerator } from './generator';
 
+import { SUPPORTED_LOCALES } from './constants';
 
-const handleUpdateTranslations = (translationsPath:string,translations:Record<string,string>) => {
-  if (fs.existsSync(translationsPath)) {
-    // 如果文件存在，读取并更新
-    const existingTranslations = fs.readJSONSync(translationsPath, { throws: false }) || {};
-    const mergedTranslations = { ...existingTranslations, ...translations };
-    fs.writeJSONSync(translationsPath, mergedTranslations, { spaces: 2 });
-  }
-  else {
-    // 如果文件不存在，创建一个新的 translations.json
-    console.log('Creating new translations.json file');
-    // 确保目录存在
-    const dir = path.dirname(translationsPath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
+
+const handleExtractTranslations = (outputDir: string, translations: Record<string, string>, namespace: string) => {
+  // 确保 translations 目录存在
+  const translationsDir = outputDir;
+  fs.ensureDirSync(translationsDir);
+
+  // 处理每个语言文件
+  SUPPORTED_LOCALES.forEach(locale => {
+    const translationsPath = path.join(translationsDir, `${locale}.json`);
+
+    if (locale === 'en') {
+      // 处理英文翻译文件（包含实际内容）
+      if (fs.existsSync(translationsPath)) {
+        // 如果文件存在，读取并更新
+        const existingTranslations = fs.readJSONSync(translationsPath, { throws: false }) || {};
+
+        // 检查命名空间是否存在
+        if (existingTranslations[namespace]) {
+          // 如果命名空间存在，合并该命名空间下的翻译
+          existingTranslations[namespace] = {
+            ...existingTranslations[namespace],
+            ...translations
+          };
+        } else {
+          // 如果命名空间不存在，创建新的命名空间
+          existingTranslations[namespace] = translations;
+        }
+
+        // 写回文件
+        fs.writeJSONSync(translationsPath, existingTranslations, { spaces: 2 });
+      } else {
+        // 创建新的英文翻译文件
+        const newTranslations = {
+          [namespace]: translations
+        };
+        fs.writeJSONSync(translationsPath, newTranslations, { spaces: 2 });
+      }
+    } else {
+      // 处理其他语言文件（创建空结构）
+      if (!fs.existsSync(translationsPath)) {
+        // 如果其他语言文件不存在，创建与英文相同结构但值为空的文件
+        const emptyTranslations = {
+          [namespace]: Object.fromEntries(
+            Object.keys(translations).map(key => [key, ''])
+          )
+        };
+        fs.writeJSONSync(translationsPath, emptyTranslations, { spaces: 2 });
+      } else {
+        // 如果文件已存在，添加新的命名空间和键（如果不存在）
+        const existingTranslations = fs.readJSONSync(translationsPath, { throws: false }) || {};
+        if (!existingTranslations[namespace]) {
+          existingTranslations[namespace] = Object.fromEntries(
+            Object.keys(translations).map(key => [key, ''])
+          );
+          fs.writeJSONSync(translationsPath, existingTranslations, { spaces: 2 });
+        } else {
+          // 确保所有新的键都被添加
+          const updatedTranslations = {
+            ...existingTranslations[namespace],
+            ...Object.fromEntries(
+              Object.keys(translations)
+                .filter(key => !existingTranslations[namespace][key])
+                .map(key => [key, ''])
+            )
+          };
+          existingTranslations[namespace] = updatedTranslations;
+          fs.writeJSONSync(translationsPath, existingTranslations, { spaces: 2 });
+        }
+      }
     }
-    // 创建一个新的 translations.json
-    fs.writeJSONSync(translationsPath, translations, { spaces: 2 });
-
-  }
-}
+  });
+};
 
 // Process a single file
 const processFile = async(
@@ -58,13 +111,13 @@ const processFile = async(
     const originalAst = parser.parseFile(filePath,);
 
     // 2. 处理ast，返回处理后的ast以及翻译文本
-    const { processedAST,translations } = astProcessor.processAST(originalAst);
+    const { processedAST,translations } = astProcessor.processAST(originalAst,namespace);
 
     // 3. 将处理好后的ast进行格式化处理，并生成code
     const formattedCode = await generator.generateFormattedCode(processedAST);
 
     // 4. 更新 translations.json 文件
-    handleUpdateTranslations(translationsPath, translations);
+    handleExtractTranslations(translationsPath, translations, namespace);
 
     // 5. 写回文件
     fs.writeFileSync(outputPath, formattedCode);
@@ -138,7 +191,7 @@ const main = async () => {
   console.log('------------------');
 
   const outputDir = path.resolve(process.cwd(), 'output');
-  const translationsPath = path.resolve(outputDir, 'translations.json');
+  const translationsPath = path.resolve(outputDir, 'translations');
 
   // Ensure output directory exists
   fs.ensureDirSync(outputDir);

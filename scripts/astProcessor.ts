@@ -24,6 +24,15 @@ export class AstProcessor {
   private translationKeys: Record<string, string> = {};
   private nodeOccurrences: Record<string, number> = {};
 
+  // 将 visitor 定义为类的私有属性
+  private readonly visitor: Visitor = {
+    "StringLiteral": this.handleStringLiteral.bind(this),
+    "JSXFragment": this.handleJSXFragment.bind(this),
+    "JSXText": this.handleJSXText.bind(this),
+    "VariableDeclarator": this.handleVariableDeclarator.bind(this),
+    "ObjectProperty": this.handleObjectProperty.bind(this)
+  };
+
   constructor(configPath?: string) {
     this.config = defaultConfig.processing;
     this.nodeTypeMap = defaultConfig.nodeTypeMap;
@@ -39,6 +48,281 @@ export class AstProcessor {
     }
 
   }
+
+  private handleStringLiteral(path: NodePath<t.StringLiteral>) {
+    // Skip empty strings
+    if (!path.node.value.trim()) return;
+
+    // Skip if already translated
+    if (path.parent && this.isAlreadyTranslated(path.parent)) return;
+
+    // Handle JSX attributes
+    if (t.isJSXAttribute(path.parent)) {
+      const attributeName = (path.parent.name as t.JSXIdentifier).name;
+
+      // Skip ignored props
+      if (this.isInIgnoreList(attributeName)) return;
+
+      // Check if it's a component we should process
+      const jsxElement = path.findParent(p => t.isJSXElement(p.node));
+      if (jsxElement) {
+        const componentName = (
+            (jsxElement.node as t.JSXElement).openingElement.name as t.JSXIdentifier
+        ).name;
+
+        if (this.shouldProcessComponentProp(componentName, attributeName)) {
+          const depth = this.calculateDepth(path);
+
+          const baseKey = `${componentName}${attributeName.charAt(0).toUpperCase() + attributeName.slice(1)}`;
+          this.nodeOccurrences[baseKey] = (this.nodeOccurrences[baseKey] || 0) + 1;
+
+          const info: NodeInfo = {
+            text: path.node.value,
+            ancestorDepth: depth,
+            parentNode: {
+              type: 'Attribute',
+              name: componentName,
+            },
+            propName: attributeName,
+            occurrence: this.nodeOccurrences[baseKey],
+          };
+
+          const key = this.generateTranslationKey(info);
+
+          // Replace with t() call
+          path.replaceWith(
+              t.jsxExpressionContainer(
+                  t.callExpression(t.identifier('t'), [t.stringLiteral(key)])
+              )
+          );
+        }
+      }
+    }
+
+    // 表达式容器位于 JSX 元素内（如 h2）)
+    if (t.isJSXExpressionContainer(path.parent) && t.isJSXElement(path.parentPath?.parent)) {
+      // 跳过空字符串和已翻译的文本
+      if (!path.node.value.trim()) return;
+      if (this.isAlreadyTranslated(path.parent)) return;
+
+      // 获取包裹此字符串的 JSX 元素信息（如 h2）
+      const jsxElement = path.parentPath.parent as t.JSXElement;
+      const componentName = (
+          jsxElement.openingElement.name as t.JSXIdentifier
+      ).name;
+
+      // 跳过忽略的组件（按需配置）
+      if (this.isInIgnoreList(componentName)) return;
+
+      // 生成翻译键
+      const depth = this.calculateDepth(path);
+      const baseKey = `${componentName}`;
+      this.nodeOccurrences[baseKey] = (this.nodeOccurrences[baseKey] || 0) + 1;
+
+      const info: NodeInfo = {
+        text: path.node.value,
+        ancestorDepth: depth,
+        parentNode: {
+          type: 'JSXElement',
+          name: componentName,
+        },
+        occurrence: this.nodeOccurrences[baseKey],
+      };
+
+      const key = this.generateTranslationKey(info);
+
+      // 替换为 t() 调用
+      path.replaceWith(
+          t.callExpression(t.identifier('t'), [t.stringLiteral(key)])
+      );
+
+      // 记录翻译键
+      this.translationKeys[key] = path.node.value;
+    }
+  }
+
+  private handleJSXFragment(path: NodePath<t.JSXFragment>) {
+    // Process text nodes in JSX fragments (<></>)
+    path.node.children.forEach((child, index) => {
+      if (t.isJSXText(child)) {
+        const text = child.value.trim();
+        // Skip empty text
+        if (!text) return;
+        // 检查是否已翻译
+        if (this.isAlreadyTranslated(child)) return;
+
+        const depth = this.calculateDepth(path);
+
+        // Use Fragment as the component name
+        const baseKey = 'Fragment';
+        this.nodeOccurrences[baseKey] = (this.nodeOccurrences[baseKey] || 0) + 1;
+
+        const info: NodeInfo = {
+          text,
+          ancestorDepth: depth,
+          parentNode: {
+            type: this.getNodeType(path.node), // Will return Fragment type
+            name: 'Fragment',
+          },
+          occurrence: this.nodeOccurrences[baseKey],
+        };
+
+        const key = this.generateTranslationKey(info);
+        // Replace with t() call wrapped in expression container
+        path.node.children[index] = t.jsxExpressionContainer(
+            t.callExpression(t.identifier('t'), [t.stringLiteral(key)])
+        );
+      }
+
+      // 处理表达式容器，例如 <>{"fragment"}</>
+      if (t.isJSXExpressionContainer(child)) {
+        // 检查表达式容器中是否包含字符串字面量
+        if (t.isStringLiteral(child.expression)) {
+          const textValue = child.expression.value;
+
+          // 跳过空字符串
+          if (!textValue.trim()) return;
+
+          // 检查是否已翻译
+          if (this.isAlreadyTranslated(child)) return;
+
+          const componentName = 'Fragment';
+
+          // 跳过忽略的组件（按需配置）
+          if (this.isInIgnoreList(componentName)) return;
+
+          // 生成翻译键
+          const depth = this.calculateDepth(path);
+          const baseKey = `${componentName}`;
+          this.nodeOccurrences[baseKey] = (this.nodeOccurrences[baseKey] || 0) + 1;
+
+          const info: NodeInfo = {
+            text: textValue,
+            ancestorDepth: depth,
+            parentNode: {
+              type: 'Fragment',
+              name: componentName,
+            },
+            occurrence: this.nodeOccurrences[baseKey],
+          };
+
+          const key = this.generateTranslationKey(info);
+
+          // 替换表达式容器中的内容，而不是整个 Fragment
+          child.expression = t.callExpression(
+              t.identifier('t'),
+              [t.stringLiteral(key)]
+          );
+
+          // 记录翻译键
+          this.translationKeys[key] = textValue;
+        }
+      }
+
+    });
+  }
+
+  private handleJSXText(path: NodePath<t.JSXText>) {
+    const text = path.node.value.trim();
+    // Skip empty text
+    if (!text) return;
+
+    const jsxElement = path.parentPath;
+    if (t.isJSXElement(jsxElement.node)) {
+      const componentName = (jsxElement.node.openingElement.name as t.JSXIdentifier).name;
+      const depth = this.calculateDepth(path);
+
+      const parentType = this.getNodeType(jsxElement.node);
+
+      const baseKey = `${componentName}`;
+      this.nodeOccurrences[baseKey] = (this.nodeOccurrences[baseKey] || 0) + 1;
+
+      const info: NodeInfo = {
+        text,
+        ancestorDepth: depth,
+        parentNode: {
+          type: parentType,
+          name: componentName,
+        },
+        occurrence: this.nodeOccurrences[baseKey],
+      };
+
+      const key = this.generateTranslationKey(info);
+
+      // Replace with t() call wrapped in expression container
+      path.replaceWith(
+          t.jsxExpressionContainer(t.callExpression(t.identifier('t'), [t.stringLiteral(key)]))
+      );
+    }
+  }
+
+  private handleVariableDeclarator(path: NodePath<t.VariableDeclarator>) {
+    if (t.isIdentifier(path.node.id) && t.isArrayExpression(path.node.init)) {
+      const variableName = path.node.id.name;
+      const arrayItems = path.node.init.elements;
+
+      arrayItems.forEach((item, index) => {
+        if (t.isObjectExpression(item)) {
+          item.properties.forEach(prop => {
+            if (
+                t.isObjectProperty(prop) &&
+                t.isIdentifier(prop.key) &&
+                t.isStringLiteral(prop.value) &&
+                !this.isInIgnoreList(prop.key.name)
+            ) {
+              const propName = prop.key.name;
+              const text = prop.value.value;
+
+              // Skip empty strings
+              if (!text.trim()) return;
+
+              // Generate key for logic variable
+              const keyName = `${variableName}${propName.charAt(0).toUpperCase() + propName.slice(1)}${index + 1}`;
+              this.translationKeys[keyName] = text;
+
+              // Replace with t() call
+              prop.value = t.callExpression(t.identifier('t'), [t.stringLiteral(keyName)]);
+            }
+          });
+        }
+      });
+    }
+  }
+
+  // Process object properties in call expressions (like toast)
+  private handleObjectProperty(path: NodePath<t.ObjectProperty>) {
+    if (
+        t.isIdentifier(path.node.key) &&
+        t.isStringLiteral(path.node.value) &&
+        !this.isInIgnoreList(path.node.key.name)
+    ) {
+      // Check if we're in a toast or similar function call
+      const callExprPath = path.findParent(p => {
+        return t.isCallExpression(p.node);
+      });
+
+      if (
+          callExprPath &&
+          t.isCallExpression(callExprPath.node) &&
+          t.isIdentifier(callExprPath.node.callee)
+      ) {
+        const funcName = callExprPath.node.callee.name;
+        const propName = path.node.key.name;
+        const text = path.node.value.value;
+
+        // Skip empty strings
+        if (!text.trim()) return;
+
+        // Generate key for function call property
+        const keyName = `${funcName}${propName.charAt(0).toUpperCase() + propName.slice(1)}`;
+        this.translationKeys[keyName] = text;
+
+        // Replace with t() call
+        path.node.value = t.callExpression(t.identifier('t'), [t.stringLiteral(keyName)]);
+      }
+    }
+  }
+
 
   private isAlreadyTranslated(node: t.Node): boolean {
     if (t.isCallExpression(node) && t.isIdentifier(node.callee) && node.callee.name === 't') {
@@ -147,319 +431,105 @@ export class AstProcessor {
     return key;
   }
 
-  public processAST(ast: t.File): { processedAST: t.File; translations: Record<string, string> } {
+  public addUseTranslationImport(ast: t.File, namespace: string, isServer: boolean = true): t.File {
+    let hasTranslationsImport = false;
+    let hasTDeclaration = false;
 
-    const visitor: Visitor = {
-      "StringLiteral": path => {
-        // Skip empty strings
-        if (!path.node.value.trim()) return;
+    // 在 traverse 外部定义创建声明的函数
+    const createTranslationDeclaration = (namespace: string, isServer: boolean): t.VariableDeclaration => {
+      const translationCall = t.callExpression(
+        t.identifier(isServer ? 'getTranslations' : 'useTranslations'),
+        [t.stringLiteral(namespace)]
+      );
 
-        // Skip if already translated
-        if (path.parent && this.isAlreadyTranslated(path.parent)) return;
+      const initializer = isServer
+        ? t.awaitExpression(translationCall)
+        : translationCall;
 
-        // Handle JSX attributes
-        if (t.isJSXAttribute(path.parent)) {
-          const attributeName = (path.parent.name as t.JSXIdentifier).name;
+      return t.variableDeclaration('const', [
+        t.variableDeclarator(
+          t.identifier('t'),
+          initializer
+        ),
+      ]);
+    };
 
-          // Skip ignored props
-          if (this.isInIgnoreList(attributeName)) return;
-
-          // Check if it's a component we should process
-          const jsxElement = path.findParent(p => t.isJSXElement(p.node));
-          if (jsxElement) {
-            const componentName = (
-                (jsxElement.node as t.JSXElement).openingElement.name as t.JSXIdentifier
-            ).name;
-
-            if (this.shouldProcessComponentProp(componentName, attributeName)) {
-              const depth = this.calculateDepth(path);
-
-              const baseKey = `${componentName}${attributeName.charAt(0).toUpperCase() + attributeName.slice(1)}`;
-              this.nodeOccurrences[baseKey] = (this.nodeOccurrences[baseKey] || 0) + 1;
-
-              const info: NodeInfo = {
-                text: path.node.value,
-                ancestorDepth: depth,
-                parentNode: {
-                  type: 'Attribute',
-                  name: componentName,
-                },
-                propName: attributeName,
-                occurrence: this.nodeOccurrences[baseKey],
-              };
-
-              const key = this.generateTranslationKey(info);
-
-              // Replace with t() call
-              path.replaceWith(
-                  t.jsxExpressionContainer(
-                      t.callExpression(t.identifier('t'), [t.stringLiteral(key)])
-                  )
-              );
-            }
-          }
-        }
-
-        // Handle object properties (like in toast calls)
-        // if (t.isObjectProperty(path.parent) && t.isIdentifier(path.parent.key)) {
-        //   const propName = path.parent.key.name;
-        //
-        //   // Skip ignored props
-        //   if (this.isInIgnoreList(propName)) return;
-        //
-        //   // Check if part of a function call
-        //   const callExprPath = path.findParent(p => {
-        //     return t.isCallExpression(p.node);
-        //   });
-        //
-        //   if (
-        //       callExprPath &&
-        //       t.isCallExpression(callExprPath.node) &&
-        //       t.isIdentifier(callExprPath.node.callee)
-        //   ) {
-        //     const funcName = callExprPath.node.callee.name;
-        //     const text = path.node.value;
-        //
-        //     const keyName = `${funcName}${propName.charAt(0).toUpperCase() + propName.slice(1)}`;
-        //     this.translationKeys[keyName] = text;
-        //
-        //     // Replace with t() call
-        //     path.replaceWith(t.callExpression(t.identifier('t'), [t.stringLiteral(keyName)]));
-        //   }
-        // }
-
-        // 表达式容器位于 JSX 元素内（如 h2）)
-        if (t.isJSXExpressionContainer(path.parent) && t.isJSXElement(path.parentPath?.parent)) {
-          // 跳过空字符串和已翻译的文本
-          if (!path.node.value.trim()) return;
-          if (this.isAlreadyTranslated(path.parent)) return;
-
-          // 获取包裹此字符串的 JSX 元素信息（如 h2）
-          const jsxElement = path.parentPath.parent as t.JSXElement;
-          const componentName = (
-              jsxElement.openingElement.name as t.JSXIdentifier
-          ).name;
-
-          // 跳过忽略的组件（按需配置）
-          if (this.isInIgnoreList(componentName)) return;
-
-          // 生成翻译键
-          const depth = this.calculateDepth(path);
-          const baseKey = `${componentName}`;
-          this.nodeOccurrences[baseKey] = (this.nodeOccurrences[baseKey] || 0) + 1;
-
-          const info: NodeInfo = {
-            text: path.node.value,
-            ancestorDepth: depth,
-            parentNode: {
-              type: 'JSXElement',
-              name: componentName,
-            },
-            occurrence: this.nodeOccurrences[baseKey],
-          };
-
-          const key = this.generateTranslationKey(info);
-
-          // 替换为 t() 调用
-          path.replaceWith(
-              t.callExpression(t.identifier('t'), [t.stringLiteral(key)])
-          );
-
-          // 记录翻译键
-          this.translationKeys[key] = path.node.value;
-        }
-      },
-
-      "JSXFragment": path => {
-        // Process text nodes in JSX fragments (<></>)
-        path.node.children.forEach((child, index) => {
-          if (t.isJSXText(child)) {
-            const text = child.value.trim();
-            // Skip empty text
-            if (!text) return;
-            // 检查是否已翻译
-            if (this.isAlreadyTranslated(child)) return;
-
-            const depth = this.calculateDepth(path);
-
-            // Use Fragment as the component name
-            const baseKey = 'Fragment';
-            this.nodeOccurrences[baseKey] = (this.nodeOccurrences[baseKey] || 0) + 1;
-
-            const info: NodeInfo = {
-              text,
-              ancestorDepth: depth,
-              parentNode: {
-                type: this.getNodeType(path.node), // Will return Fragment type
-                name: 'Fragment',
-              },
-              occurrence: this.nodeOccurrences[baseKey],
-            };
-
-            const key = this.generateTranslationKey(info);
-            // Replace with t() call wrapped in expression container
-            path.node.children[index] = t.jsxExpressionContainer(
-                t.callExpression(t.identifier('t'), [t.stringLiteral(key)])
-            );
-          }
-
-          // 处理表达式容器，例如 <>{"fragment"}</>
-          if (t.isJSXExpressionContainer(child)) {
-            // 检查表达式容器中是否包含字符串字面量
-            if (t.isStringLiteral(child.expression)) {
-              const textValue = child.expression.value;
-
-              // 跳过空字符串
-              if (!textValue.trim()) return;
-
-              // 检查是否已翻译
-              if (this.isAlreadyTranslated(child)) return;
-
-              const componentName = 'Fragment';
-
-              // 跳过忽略的组件（按需配置）
-              if (this.isInIgnoreList(componentName)) return;
-
-              // 生成翻译键
-              const depth = this.calculateDepth(path);
-              const baseKey = `${componentName}`;
-              this.nodeOccurrences[baseKey] = (this.nodeOccurrences[baseKey] || 0) + 1;
-
-              const info: NodeInfo = {
-                text: textValue,
-                ancestorDepth: depth,
-                parentNode: {
-                  type: 'Fragment',
-                  name: componentName,
-                },
-                occurrence: this.nodeOccurrences[baseKey],
-              };
-
-              const key = this.generateTranslationKey(info);
-
-              // 替换表达式容器中的内容，而不是整个 Fragment
-              child.expression = t.callExpression(
-                  t.identifier('t'),
-                  [t.stringLiteral(key)]
-              );
-
-              // 记录翻译键
-              this.translationKeys[key] = textValue;
-            }
-          }
-
-        });
-      },
-
-      "JSXText": path => {
-        const text = path.node.value.trim();
-        // Skip empty text
-        if (!text) return;
-
-        const jsxElement = path.parentPath;
-        if (t.isJSXElement(jsxElement.node)) {
-          const componentName = (jsxElement.node.openingElement.name as t.JSXIdentifier).name;
-          const depth = this.calculateDepth(path);
-
-          const parentType = this.getNodeType(jsxElement.node);
-
-          const baseKey = `${componentName}`;
-          this.nodeOccurrences[baseKey] = (this.nodeOccurrences[baseKey] || 0) + 1;
-
-          const info: NodeInfo = {
-            text,
-            ancestorDepth: depth,
-            parentNode: {
-              type: parentType,
-              name: componentName,
-            },
-            occurrence: this.nodeOccurrences[baseKey],
-          };
-
-          const key = this.generateTranslationKey(info);
-
-          // Replace with t() call wrapped in expression container
-          path.replaceWith(
-              t.jsxExpressionContainer(t.callExpression(t.identifier('t'), [t.stringLiteral(key)]))
-          );
-        }
-      },
-
-      "VariableDeclarator": path => {
-        if (t.isIdentifier(path.node.id) && t.isArrayExpression(path.node.init)) {
-          const variableName = path.node.id.name;
-          const arrayItems = path.node.init.elements;
-
-          arrayItems.forEach((item, index) => {
-            if (t.isObjectExpression(item)) {
-              item.properties.forEach(prop => {
-                if (
-                    t.isObjectProperty(prop) &&
-                    t.isIdentifier(prop.key) &&
-                    t.isStringLiteral(prop.value) &&
-                    !this.isInIgnoreList(prop.key.name)
-                ) {
-                  const propName = prop.key.name;
-                  const text = prop.value.value;
-
-                  // Skip empty strings
-                  if (!text.trim()) return;
-
-                  // Generate key for logic variable
-                  const keyName = `${variableName}${propName.charAt(0).toUpperCase() + propName.slice(1)}${index + 1}`;
-                  this.translationKeys[keyName] = text;
-
-                  // Replace with t() call
-                  prop.value = t.callExpression(t.identifier('t'), [t.stringLiteral(keyName)]);
-                }
-              });
-            }
-          });
-        }
-
-      },
-
-      // Process object properties in call expressions (like toast)
-      "ObjectProperty": path => {
+    traverse(ast, {
+      ImportDeclaration(path) {
         if (
-            t.isIdentifier(path.node.key) &&
-            t.isStringLiteral(path.node.value) &&
-            !this.isInIgnoreList(path.node.key.name)
+          t.isStringLiteral(path.node.source) &&
+          (path.node.source.value === 'next-intl' || path.node.source.value === 'next-intl/server')
         ) {
-          // Check if we're in a toast or similar function call
-          const callExprPath = path.findParent(p => {
-            return t.isCallExpression(p.node);
+          path.node.specifiers.forEach(specifier => {
+            if (
+              t.isImportSpecifier(specifier) &&
+              t.isIdentifier(specifier.imported) &&
+              ((isServer && specifier.imported.name === 'getTranslations') ||
+               (!isServer && specifier.imported.name === 'useTranslations'))
+            ) {
+              hasTranslationsImport = true;
+            }
           });
-
-          if (
-              callExprPath &&
-              t.isCallExpression(callExprPath.node) &&
-              t.isIdentifier(callExprPath.node.callee)
-          ) {
-            const funcName = callExprPath.node.callee.name;
-            const propName = path.node.key.name;
-            const text = path.node.value.value;
-
-            // Skip empty strings
-            if (!text.trim()) return;
-
-            // Generate key for function call property
-            const keyName = `${funcName}${propName.charAt(0).toUpperCase() + propName.slice(1)}`;
-            this.translationKeys[keyName] = text;
-
-            // Replace with t() call
-            path.node.value = t.callExpression(t.identifier('t'), [t.stringLiteral(keyName)]);
-          }
         }
       },
+      VariableDeclarator(path) {
+        if (
+          t.isIdentifier(path.node.id) &&
+          path.node.id.name === 't'
+        ) {
+          hasTDeclaration = true;
+        }
+      },
+      FunctionDeclaration(path) {
+        if (!hasTDeclaration && path.node.body.type === 'BlockStatement') {
+          const translationDeclaration = createTranslationDeclaration(namespace, isServer);
+          path.node.body.body.unshift(translationDeclaration);
+          hasTDeclaration = true;
+        }
+      },
+      ArrowFunctionExpression(path) {
+        if (!hasTDeclaration && path.node.body.type === 'BlockStatement') {
+          const translationDeclaration = createTranslationDeclaration(namespace, isServer);
+          path.node.body.body.unshift(translationDeclaration);
+          hasTDeclaration = true;
+        }
+      }
+    });
+
+    if (!hasTranslationsImport) {
+      const importDeclaration = t.importDeclaration(
+        [t.importSpecifier(
+          t.identifier(isServer ? 'getTranslations' : 'useTranslations'),
+          t.identifier(isServer ? 'getTranslations' : 'useTranslations')
+        )],
+        t.stringLiteral(isServer ? 'next-intl/server' : 'next-intl')
+      );
+      ast.program.body.unshift(importDeclaration);
     }
 
-    traverse(ast, visitor);
+    return ast;
+  }
+
+  public processAST(ast: t.File, namespace:string): { processedAST: t.File; translations: Record<string, string> } {
+
+    traverse(ast, this.visitor);
+    /**
+     * 添加 useTranslation 导入
+     *
+     * 注意：在服务端渲染中，使用 getTranslations 替换 useTranslations
+     */
+    const declaredAST = this.addUseTranslationImport(
+      ast,
+      namespace,
+      /* isServer */
+      true
+    );
+
 
     return {
-      processedAST: ast,
+      processedAST: declaredAST, // 添加 useTranslation 导入
       translations: this.translationKeys,
     }
-
   }
+
 }
